@@ -1,0 +1,225 @@
+# ## 1. Montar tu Google Drive
+from google.colab import drive
+drive.mount('/content/drive')
+
+# ## 2. Instalar e importar librerías
+#!pip install tqdm -q
+#!pip install matplotlib -q # Aseguramos que matplotlib esté instalado para graficar
+import os
+import pandas as pd
+from PIL import Image
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms as T
+import torchvision.models as models
+from tqdm.notebook import tqdm  # para barras de progreso
+from torch.optim import lr_scheduler # Importar el scheduler
+
+# ## 3. Configuración de rutas y parámetros
+CSV_PATH      = '/content/drive/MyDrive/No_segmentadas/DATASET COMPILADO.csv'
+IMAGES_ROOT   = '/content/drive/MyDrive/No_segmentadas/CXR_PreprocesadoRESNET50/'
+BATCH_SIZE    = 16
+NUM_EPOCHS    = 100 # Aumentamos las épocas para dar tiempo al scheduler y early stopping (si se añade)
+LR            = 1e-4
+# Ajustamos Weight Decay a un valor menor
+WEIGHT_DECAY  = 5e-4 # Reducimos ligeramente el valor
+DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+# ## 4. Data Augmentation y transformaciones
+# Transformaciones para entrenamiento con aumentación
+train_transform = T.Compose([
+    T.Resize((224, 224)), # Aseguramos tamaño consistente
+    T.RandomHorizontalFlip(p=0.5), # Aumentación: volteo horizontal
+    T.RandomRotation(degrees=10), # Aumentación: rotación aleatoria (reducimos grados)
+    T.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05), # Aumentación: jitter de color (reducimos intensidad)
+    T.ToTensor(),
+    T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+
+# Transformaciones para validación (solo redimensionar y normalizar)
+val_transform = T.Compose([
+    T.Resize((224, 224)),
+    T.ToTensor(),
+    T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+
+
+# ## 5. Dataset multilabel con .png forzado
+class ChestXrayDataset(Dataset):
+    def __init__(self, csv_file, root_dir, transform=None):
+        self.df = pd.read_csv(csv_file, sep=';')
+        self.root = root_dir
+        self.transform = transform
+        # extrae dinámicamente todas las clases
+        all_labels = set()
+        for labs in self.df['Etiqueta'].dropna():
+            all_labels |= set(labs.split('|'))
+        self.classes = sorted(all_labels)
+        self.class_to_idx = {c:i for i,c in enumerate(self.classes)}
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        base = os.path.splitext(row['image_name'])[0] + '.png'
+        path = os.path.join(self.root, base)
+        img  = Image.open(path).convert('RGB')
+        x    = self.transform(img)
+        y    = torch.zeros(len(self.classes), dtype=torch.float32)
+        for lab in str(row['Etiqueta']).split('|'):
+            if lab in self.class_to_idx:
+                y[self.class_to_idx[lab]] = 1.0
+        return x, y
+
+# ## 6. DataLoaders (usando transforms separados)
+dataset   = ChestXrayDataset(CSV_PATH, IMAGES_ROOT) # Usamos el dataset base para obtener el tamaño
+n_train   = int(0.8 * len(dataset))
+n_val     = len(dataset) - n_train
+# Creamos datasets separados con las transformaciones adecuadas
+train_dataset = ChestXrayDataset(CSV_PATH, IMAGES_ROOT, transform=train_transform)
+val_dataset   = ChestXrayDataset(CSV_PATH, IMAGES_ROOT, transform=val_transform)
+
+# Aplicamos el random_split a los nuevos datasets con transforms
+train_ds, _ = torch.utils.data.random_split(train_dataset, [n_train, n_val]) # Solo necesitamos la parte de entrenamiento del train_dataset
+_, val_ds   = torch.utils.data.random_split(val_dataset,   [n_train, n_val]) # Solo necesitamos la parte de validación del val_dataset
+
+train_dl  = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,  num_workers=2)
+val_dl    = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
+
+
+# ## 7. Definición del modelo (salidas independientes)
+class MultiLabelModel(nn.Module):
+    def __init__(self, num_labels):
+        super().__init__()
+        base = models.resnet50(pretrained=True)
+        base.fc = nn.Identity()   # quitamos la capa final
+        self.backbone   = base
+        # Mantenemos la complejidad reducida pero ajustamos dropout
+        self.classifier = nn.Sequential(
+            nn.Linear(2048, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.4), # Reducimos la tasa de dropout
+            nn.Linear(256, num_labels)
+        )
+
+    def forward(self, x):
+        feats  = self.backbone(x)        # [B, 2048]
+        logits = self.classifier(feats)  # [B, num_labels]
+        return logits
+
+model = MultiLabelModel(num_labels=len(dataset.classes)).to(DEVICE)
+
+# ## 8. Loss, optimizer y pesos por etiqueta
+# pos_weight >1 para etiquetas raras
+pos_weight = torch.tensor(
+    [(len(dataset.df) / (dataset.df['Etiqueta'].str.count(c).sum() + 1e-6))
+     for c in dataset.classes],
+    device=DEVICE
+)
+criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+# Añadimos weight_decay al optimizador
+optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+
+# Añadimos Learning Rate Scheduler
+scheduler = lr_scheduler.ReduceLROnPlateau(
+    optimizer, mode='min', factor=0.2, patience=2, verbose=True # Ajustamos factor y patience
+)
+
+
+# ## 9. Loop de entrenamiento y validación
+# Listas para almacenar las pérdidas
+train_losses = []
+val_losses = []
+
+# Variables para Early Stopping (opcional, pero recomendado)
+#best_val_loss = float('inf')
+#patience_counter = 0
+#early_stopping_patience = 5 # Número de épocas a esperar antes de detener
+
+for epoch in range(1, NUM_EPOCHS+1):
+    # --- Entrenamiento ---
+    model.train()
+    run_loss = 0
+    for xb, yb in tqdm(train_dl, desc=f"Epoch {epoch} Train", leave=False):
+        xb, yb = xb.to(DEVICE), yb.to(DEVICE)
+        optimizer.zero_grad()
+        logits = model(xb)
+        loss   = criterion(logits, yb)
+        loss.backward()
+        optimizer.step()
+        run_loss += loss.item() * xb.size(0)
+    train_loss = run_loss / len(train_dl.dataset)
+    train_losses.append(train_loss)
+
+    # --- Validación ---
+    model.eval()
+    val_loss = 0
+    with torch.no_grad():
+        for xb, yb in tqdm(val_dl, desc=f"Epoch {epoch} Val  ", leave=False):
+            xb, yb = xb.to(DEVICE), yb.to(DEVICE)
+            logits  = model(xb)
+            batch_l = criterion(logits, yb).item()
+            val_loss += batch_l * xb.size(0)
+    val_loss /= len(val_dl.dataset)
+    val_losses.append(val_loss)
+
+    print(f"Epoch {epoch:02d} — train_loss: {train_loss:.4f}  val_loss: {val_loss:.4f}")
+
+    # Step del scheduler
+    scheduler.step(val_loss)
+
+    # Lógica de Early Stopping (opcional)
+    #if val_loss < best_val_loss:
+    #    best_val_loss = val_loss
+    #    patience_counter = 0
+        # Aquí podrías guardar el modelo si es el mejor hasta ahora
+        # torch.save(model.state_dict(), 'best_model.pth')
+    #else:
+    #    patience_counter += 1
+    #    if patience_counter >= early_stopping_patience:
+    #        print(f"Early stopping triggered after {early_stopping_patience} epochs without improvement.")
+    #        break # Salir del bucle de entrenamiento
+
+# ## Guardar el modelo al finalizar el entrenamiento
+try:
+    # Asegúrate de que la carpeta de destino exista
+    save_path = '/content/drive/MyDrive/mis_modelos/chestxray_model_final.pth'
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    torch.save(model.state_dict(), save_path)
+    print(f"Modelo guardado exitosamente en: {save_path}")
+except Exception as e:
+    print(f"Error al guardar el modelo: {e}")
+
+
+# ## 10. Inferencia: obtener probabilidades por etiqueta
+def predict(batch_imgs, model, threshold=0.5):
+    model.eval()
+    with torch.no_grad():
+        logits = model(batch_imgs.to(DEVICE))
+        probs  = torch.sigmoid(logits)
+        preds  = (probs > threshold).int()
+    return probs.cpu(), preds.cpu()
+
+# Ejemplo de uso:
+# imgs, _ = next(iter(val_dl))
+# probs, preds = predict(imgs, model, threshold=0.5)
+# print("Probabilidades:", probs)
+# print("Predicciones binarias:", preds)
+
+# ## 11. Graficar las pérdidas de entrenamiento y validación
+import matplotlib.pyplot as plt
+# Asegúrate de que las listas train_losses y val_losses existen después del entrenamiento
+if 'train_losses' in locals() and 'val_losses' in locals():
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(1, len(train_losses) + 1), train_losses, label='Pérdida de Entrenamiento')
+    plt.plot(range(1, len(val_losses) + 1), val_losses, label='Pérdida de Validación')
+    plt.xlabel('Época')
+    plt.ylabel('Pérdida')
+    plt.title('Curvas de Pérdida de Entrenamiento y Validación')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+else:
+    print("Las listas de pérdidas (train_losses, val_losses) no se encontraron. Asegúrate de que el entrenamiento se ha completado.")
