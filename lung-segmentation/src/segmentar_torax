@@ -1,0 +1,174 @@
+import torch
+import torchvision.transforms as transforms
+from PIL import Image
+import numpy as np
+import cv2
+from pathlib import Path
+
+from models import UNet
+
+# 📁 Rutas
+input_dir = Path("C:/Users/ggabo/OneDrive/Documentos/ESPOL/Tesis/DATASET/SEGMENTACION/data/CXR_Png")
+output_dir = input_dir.parent / "Masks_Segmentadas_Torax"
+model_path = Path("C:/Users/ggabo/OneDrive/Documentos/ESPOL/Tesis/DATASET/SEGMENTACION/lung-segmentation/models/unet-2v.pt")
+output_dir.mkdir(parents=True, exist_ok=True)
+
+# 🔁 Transformación
+transform = transforms.Compose([
+    transforms.Resize((256, 256)),
+    transforms.ToTensor(),
+])
+
+def ajustar_gamma(img, gamma=1.2):
+    inv_gamma = 1.0 / gamma
+    table = np.array([(i / 255.0) ** inv_gamma * 255 for i in range(256)]).astype("uint8")
+    return cv2.LUT(img, table)
+
+def extraer_roi_torax(img_np):
+    _, thresh = cv2.threshold(img_np, 30, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if contours:
+        c = max(contours, key=cv2.contourArea)
+        x, y, w, h = cv2.boundingRect(c)
+        margen = 10
+        y1 = max(y - margen, 0)
+        y2 = min(y + h + margen, img_np.shape[0])
+        x1 = max(x - margen, 0)
+        x2 = min(x + w + margen, img_np.shape[1])
+        return img_np[y1:y2, x1:x2]
+    return img_np
+
+def preprocesar_imagen(img_pil):
+    img_gray = np.array(img_pil.convert("L")).astype(np.uint8)
+    img_roi = extraer_roi_torax(img_gray)
+    img_gamma = ajustar_gamma(img_roi, gamma=1.2)
+    img_suavizado = cv2.medianBlur(img_gamma, 3)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    img_clahe = clahe.apply(img_suavizado)
+    img_norm = img_clahe.astype(np.float32)
+    img_normalizado = (img_norm - img_norm.mean()) / (img_norm.std() + 1e-8)
+    img_rescaled = ((img_normalizado - img_normalizado.min()) /
+                    (img_normalizado.max() - img_normalizado.min()) * 255).astype(np.uint8)
+    return Image.fromarray(img_rescaled)
+
+def cerrar_concavidades_con_hull(mask_binaria):
+    mask = (mask_binaria > 127).astype(np.uint8) * 255
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    mask_hull = np.zeros_like(mask)
+    for cnt in contours:
+        hull = cv2.convexHull(cnt)
+        cv2.drawContours(mask_hull, [hull], 0, 255, -1)
+    return mask_hull
+
+def unir_fragmentos_por_poligono_convexo(mask_mitad, max_dist=100):
+    mask = (mask_mitad > 127).astype(np.uint8) * 255
+    contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if len(contornos) < 2:
+        return mask
+
+    combinados = [contornos[0]]
+    for i in range(1, len(contornos)):
+        unido = False
+        for j in range(len(combinados)):
+            for p1 in contornos[i]:
+                for p2 in combinados[j]:
+                    if np.linalg.norm(p1[0] - p2[0]) < max_dist:
+                        combinados[j] = np.vstack((combinados[j], contornos[i]))
+                        unido = True
+                        break
+                if unido:
+                    break
+        if not unido:
+            combinados.append(contornos[i])
+
+    nueva_mask = np.zeros_like(mask)
+    for grupo in combinados:
+        if grupo.shape[0] >= 3:
+            hull = cv2.convexHull(grupo)
+            cv2.fillPoly(nueva_mask, [hull], 255)
+
+    return nueva_mask
+
+# 🆕 NUEVO POSTPROCESAMIENTO
+def conectar_puntos_y_rellenar(mask_binaria):
+    mask = (mask_binaria > 127).astype(np.uint8) * 255
+    h, w = mask.shape
+    mitad = w // 2
+    izquierda = mask[:, :mitad]
+    derecha = mask[:, mitad:]
+
+    def extremos(mask_lado, offset_x=0):
+        contornos, _ = cv2.findContours(mask_lado, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contornos:
+            return None, None
+        puntos = np.vstack(contornos)[:, 0, :]
+        puntos[:, 0] += offset_x
+        y_min_idx = np.argmin(puntos[:, 1])
+        y_max_idx = np.argmax(puntos[:, 1])
+        return tuple(puntos[y_min_idx]), tuple(puntos[y_max_idx])
+
+    p1_izq, p2_izq = extremos(izquierda, offset_x=0)
+    p1_der, p2_der = extremos(derecha, offset_x=mitad)
+
+    if None in (p1_izq, p2_izq, p1_der, p2_der):
+        return mask_binaria
+
+    poligono = np.array([p1_izq, p1_der, p2_der, p2_izq], dtype=np.int32)
+    mask_relleno = mask.copy()
+    cv2.fillConvexPoly(mask_relleno, poligono, 255)
+
+    return mask_relleno
+
+# 🧠 Modelo
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = UNet(in_channels=1, out_channels=2)
+state_dict = torch.load(model_path, map_location=device)
+model.load_state_dict(state_dict)
+model.to(device)
+model.eval()
+
+# 🔄 Procesar imágenes
+extensiones_validas = ["*.png", "*.jpg", "*.jpeg", "*.PNG", "*.JPG", "*.JPEG"]
+imagenes = []
+for ext in extensiones_validas:
+    imagenes.extend(input_dir.glob(ext))
+
+for img_path in sorted(imagenes):
+    img = Image.open(img_path)
+
+    if "L" in img_path.name.upper():
+        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+
+    img_proc = preprocesar_imagen(img)
+    original_size = img.size
+    input_tensor = transform(img_proc).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        output = model(input_tensor)
+        prediction = torch.argmax(output.squeeze(), dim=0).cpu().numpy().astype(np.uint8) * 255
+        prediction = cv2.resize(prediction, original_size)
+
+    prediction = cerrar_concavidades_con_hull(prediction)
+    h, w = prediction.shape
+    mitad = w // 2
+    izquierda = prediction[:, :mitad]
+    derecha = prediction[:, mitad:]
+
+    izquierda_corr = unir_fragmentos_por_poligono_convexo(izquierda, max_dist=100)
+    derecha_corr = unir_fragmentos_por_poligono_convexo(derecha, max_dist=100)
+    prediction = np.hstack([izquierda_corr, derecha_corr])
+    
+    # 🔽 Añadir relleno entre pulmones
+    prediction = conectar_puntos_y_rellenar(prediction)
+
+    area_blanca = np.count_nonzero(prediction == 255)
+    total_pixeles = prediction.shape[0] * prediction.shape[1]
+    porcentaje_blanco = area_blanca / total_pixeles
+
+    if porcentaje_blanco < 0.09:
+        print(f"❌ Descartada: {img_path.name} ({porcentaje_blanco:.2%} blancos)")
+        continue
+
+    out_path = output_dir / f"{img_path.stem}_mask.png"
+    Image.fromarray(prediction).save(out_path)
+    print(f"✅ Guardada: {img_path.name} ({porcentaje_blanco:.2%} blancos)")
