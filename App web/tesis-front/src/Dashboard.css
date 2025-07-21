@@ -65,13 +65,20 @@
 }
 
 .sidebar li {
-  margin: 15px 0;
+    user-select: none;
+  margin: 10px 0;
+  padding: 12px 16px;
+  background-color: transparent;
+  border-radius: 8px;
   cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
 .sidebar li:hover {
-  text-decoration: underline;
+  background-color: #006582;
+  text-decoration: none;
 }
+
 
 /* Área principal */
 .image-area {
@@ -243,6 +250,48 @@
 
 .send-feedback-button:hover {
   background-color: #004f66;
+}
+
+
+/* Pacientes - Área principal */
+.pacientes-area {
+  flex: 1;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Tarjetas de pacientes */
+.pacientes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.paciente-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 600px;
+}
+
+.paciente-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.paciente-detalles {
+  margin-top: 10px;
+  font-size: 15px;
+}
+
+.paciente-detalles ul {
+  padding-left: 20px;
 }
 
 

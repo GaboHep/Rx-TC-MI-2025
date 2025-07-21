@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import "./LoginPage.css";
-import { useNavigate } from "react-router-dom";
+import { useNavigate} from "react-router-dom";
 import logoEspol from "./assets/logoEspol.png";
 
 export default function LoginPage() {
@@ -8,13 +8,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
     // Simulación temporal de autenticación
     if (username.trim() === "admin" && password.trim() === "1234") {
       localStorage.setItem("auth", "true"); // simula sesión iniciada
-      alert("Inicio de sesión exitoso");
+      //alert("Inicio de sesión exitoso");
       navigate("/dashboard");
     } else {
       alert("Credenciales incorrectas");

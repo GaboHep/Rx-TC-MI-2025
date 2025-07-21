@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import logoEspol from "./assets/logoEspol.png";
 import "./Dashboard.css";
 
@@ -9,6 +9,7 @@ export default function Dashboard() {
   const [userType, setUserType] = useState("radiologo");
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const location = useLocation();
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -47,9 +48,16 @@ export default function Dashboard() {
       <div className="dashboard-main">
         {/* Sidebar */}
         <nav className="sidebar">
-          <ul>
-            <li>Diagnósticos</li>
-            {userType === "radiologo" && <li>Pacientes</li>}
+          <ul>           
+            <li onClick={() => {
+                if (location.pathname === "/dashboard") {
+                window.location.reload(); // fuerza recarga si ya estás ahí
+                } else {
+                navigate("/dashboard");
+                }
+            }}>Diagnósticos</li>
+
+            {userType === "radiologo" && <li onClick={() => navigate("/pacientes")}>Pacientes</li>}
             {userType === "administrador" && (
               <>
                 <li>Feedbacks</li>
