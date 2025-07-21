@@ -1,0 +1,248 @@
+/* Fondo general */
+.dashboard-wrapper {
+  min-height: 100vh;
+  background-color: #006582;
+  display: flex;
+  flex-direction: column;
+  font-family: Arial, sans-serif;
+}
+
+/* Header */
+.dashboard-header {
+  background-color: white;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 0;
+}
+
+/* Logo de ESPOL */
+.espol-logo {
+  height: 45px;
+  width: auto;
+}
+
+/* Rol del usuario (derecha) */
+.user-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: bold;
+}
+
+/* Contenido principal */
+.dashboard-main {
+  flex: 1;
+  display: flex;
+}
+
+/* Sidebar */
+.sidebar {
+  background-color: #004f66;
+  padding: 20px;
+  width: 180px;
+  color: white;
+  font-weight: bold;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar li {
+  margin: 15px 0;
+  cursor: pointer;
+}
+
+.sidebar li:hover {
+  text-decoration: underline;
+}
+
+/* Área principal */
+.image-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+}
+
+/* Botón seleccionar imagen */
+.upload-button {
+  background-color: white;
+  padding: 12px 20px;
+  border-radius: 25px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Botón cargar imagen */
+.diagnose-button {
+  background-color: white;
+  padding: 12px 20px;
+  border-radius: 25px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Caja de arrastre (placeholder) */
+.upload-box {
+  width: 400px;
+  height: 120px;
+  background-color: white;
+  border: 2px dashed gray;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #444;
+  text-align: center;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+/* Imagen cargada */
+.preview-image {
+  width: 350px;
+  height: auto;
+  border: 4px solid white;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+/* ======== NUEVOS ESTILOS ======== */
+
+.results-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Progreso */
+.progress-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.progress-bar {
+  width: 300px;
+  height: 20px;
+  border-radius: 8px;
+}
+
+.progress-label {
+  font-weight: bold;
+  color: white;
+}
+
+/* Resultados */
+.result-section {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 40px;
+  margin-top: 30px;
+}
+
+.result-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 20px;
+}
+
+.result-disease-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: large;
+}
+
+.result-disease-list li {
+  margin: 6px 0;
+}
+
+/* Feedback */
+.feedback-section h3 {
+  margin-bottom: 6px;
+}
+
+.feedback-section p {
+  margin: 0;
+}
+
+.result-box {
+  background-color: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 1px 1px 8px rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+  margin-bottom: 20px;
+}
+
+/* Feedback */
+.feedback-box {
+  background-color: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 1px 1px 8px rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+  margin-top: 20px;
+}
+
+.feedback-box h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.feedback-textarea {
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+  padding: 10px;
+  font-size: 14px;
+  font-family: Arial, sans-serif;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}
+
+.send-feedback-button {
+  background-color: #006582;
+  color: white;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  float: right;
+}
+
+.send-feedback-button:hover {
+  background-color: #004f66;
+}
+
+

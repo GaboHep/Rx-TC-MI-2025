@@ -1,0 +1,71 @@
+.login-wrapper {
+  height: 100vh;
+  background-color: #006582;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-header {
+  background-color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0;
+  position: relative;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.espol-logo {
+  height: 35px;
+  position: absolute;
+  left: 20px;
+}
+
+.login-box {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-icon {
+  width: 100px;
+  height: 100px;
+  margin-bottom: 30px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 250px;
+}
+
+.input-field {
+  background-color: #d9d9d9;
+  padding: 12px;
+  font-size: 16px;
+  border: none;
+  text-align: center;
+  font-weight: bold;
+}
+
+.input-button {
+  background-color: black;
+  color: white;
+  font-weight: bold;
+  padding: 12px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.input-button:hover {
+  background-color: #333;
+}
