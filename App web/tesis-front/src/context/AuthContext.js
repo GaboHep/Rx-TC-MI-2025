@@ -1,12 +1,17 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [auth, setAuth] = useState(() => {
-    const token = localStorage.getItem('token');
-    const role = localStorage.getItem('role');
-    return { token, role };
+    const storedToken = localStorage.getItem('token');
+    const storedRole = localStorage.getItem('role');
+
+    if (storedToken && storedToken !== "null") {
+      return { token: storedToken, role: storedRole };
+    } else {
+      return { token: null, role: null };
+    }
   });
 
   const login = (token, role) => {
@@ -20,6 +25,15 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('role');
     setAuth({ token: null, role: null });
   };
+
+  // Mantener sincronización con localStorage si el usuario navega con F5, back, etc.
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token');
+    const storedRole = localStorage.getItem('role');
+    if (!auth.token && storedToken && storedToken !== "null") {
+      setAuth({ token: storedToken, role: storedRole });
+    }
+  }, []);
 
   return (
     <AuthContext.Provider value={{ auth, login, logout }}>

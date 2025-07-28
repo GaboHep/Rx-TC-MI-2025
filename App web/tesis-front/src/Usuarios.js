@@ -17,12 +17,31 @@ export default function Usuarios() {
 
   useEffect(() => {
     if (!token) return;
+
     fetch("http://localhost:8000/radiologos", {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => res.json())
-      .then(setRadiologos);
-  }, [token]);
+      .then((res) => {
+        if (!res.ok) {
+          console.warn("Token inválido o expirado");
+          logout();
+          return [];
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setRadiologos(data);
+        } else {
+          console.warn("Respuesta inesperada:", data);
+          setRadiologos([]);
+        }
+      })
+      .catch((err) => {
+        console.error("Error al obtener usuarios:", err);
+        setRadiologos([]);
+      });
+  }, [token, logout]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -115,7 +134,7 @@ export default function Usuarios() {
             )}
             {userRole === "administrador" && (
               <>
-                <li onClick={() => navigate("/feedbacks")}>Feedbacks</li>
+                <li onClick={() => navigate("/feedbacks")}>Resultados por Radiologo</li>
                 <li onClick={() => navigate("/usuarios")}>Usuarios</li>
               </>
             )}
@@ -166,16 +185,22 @@ export default function Usuarios() {
               </tr>
             </thead>
             <tbody>
-              {radiologos.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.id}</td>
-                  <td>{r.username}</td>
-                  <td>
-                    <button onClick={() => handleEdit(r)}>Editar</button>
-                    <button onClick={() => handleDelete(r.id)}>Eliminar</button>
-                  </td>
+              {Array.isArray(radiologos) && radiologos.length > 0 ? (
+                radiologos.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.id}</td>
+                    <td>{r.username}</td>
+                    <td>
+                      <button onClick={() => handleEdit(r)}>Editar</button>
+                      <button onClick={() => handleDelete(r.id)}>Eliminar</button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="3">No hay usuarios registrados o el token no es válido.</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

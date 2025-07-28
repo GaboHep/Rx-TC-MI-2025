@@ -36,66 +36,89 @@ export default function Dashboard() {
 
   const [registros, setRegistros] = useState([]);
 
-  const handleGuardar = () => {
+  const handleGuardar = async () => {
     const nuevoRegistro = {
-      id: formData.key,
-      fecha: formData.inferenceDate,
-      datos: formData,
-      resultados: resultados,
+      key: formData.key,
+      inference_date: formData.inferenceDate,
+      birth_date: formData.birthDate,
+      gender: formData.gender,
+      city: formData.city,
+      parish: formData.parish,
+      canton: formData.canton,
       precision: precision,
+      resultados: JSON.stringify(resultados),
       feedback: feedback,
       image: image,
     };
-    setRegistros(prev => [...prev, nuevoRegistro]);
-    console.log("📦 Registro guardado temporalmente:", nuevoRegistro);
 
-    setImage(null);
-    setResultados([]);
-    setPrecision(null);
-    setFeedback("");
-    setFormData({
-      key: crypto.randomUUID(),
-      birthDate: "",
-      gender: "",
-      city: "",
-      parish: "",
-      canton: "",
-      inferenceDate: new Date().toISOString().split("T")[0],
-    });
-    setShowResults(false);
-    setLoading(false);
-    setProgressValue(0);
-    navigate("/dashboard");
-  };
+    try {
+      const response = await fetch("http://localhost:8000/guardar_registro", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify(nuevoRegistro),
+      });
 
+      if (!response.ok) throw new Error("Error al guardar en base de datos");
+      alert("✅ Registro guardado correctamente");
 
+      // Limpiar formulario
+      setImage(null);
+      setResultados([]);
+      setPrecision(null);
+      setFeedback("");
+      setFormData({
+        key: crypto.randomUUID(),
+        birthDate: "",
+        gender: "",
+        city: "",
+        parish: "",
+        canton: "",
+        inferenceDate: new Date().toISOString().split("T")[0],
+      });
+      setShowResults(false);
+      setLoading(false);
+      setProgressValue(0);
 
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result);
-        setShowResults(false);
-      };
-      reader.readAsDataURL(file);
+      navigate("/resultados");
+
+    } catch (error) {
+      console.error(error);
+      alert("❌ Error al guardar el registro.");
     }
   };
 
-  //CODIGO PARA LA SECCIÓN DE LA BARRA DE CARGA
-  const simulateProgress = () => {
-    setProgress(0);
-    let current = 0;
-    const interval = setInterval(() => {
-      current += 5;
-      if (current >= 95) {
-        clearInterval(interval);
-        return;
+
+
+
+    const handleImageSelect = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImage(reader.result);
+          setShowResults(false);
+        };
+        reader.readAsDataURL(file);
       }
-      setProgress(current);
-    }, 100); // velocidad deseada (ajustable)
-    return interval;
-  };
+    };
+
+    //CODIGO PARA LA SECCIÓN DE LA BARRA DE CARGA
+    const simulateProgress = () => {
+      setProgress(0);
+      let current = 0;
+      const interval = setInterval(() => {
+        current += 5;
+        if (current >= 95) {
+          clearInterval(interval);
+          return;
+        }
+        setProgress(current);
+      }, 100); // velocidad deseada (ajustable)
+      return interval;
+    };
 
 
 
@@ -200,7 +223,7 @@ export default function Dashboard() {
 
               {userRole === "administrador" && (
                 <>
-                  <li onClick={() => navigate("/feedbacks")}>Feedbacks</li> {/* si luego lo implementas */}
+                  <li onClick={() => navigate("/feedbacks")}>Resultados por Radiologo</li> {/* si luego lo implementas */}
                   <li onClick={() => navigate("/usuarios")}>Usuarios</li>
                 </>
               )}
