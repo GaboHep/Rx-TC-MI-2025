@@ -2,7 +2,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LandingPage from "./landingPage";
 import LoginPage from "./LoginPage"; // Puedes crear esta luego
 import Dashboard from "./Dashboard";
-import Pacientes from "./Pacientes";
+import Resultados from "./Resultados";
+import Usuarios from "./Usuarios";
+
 
 function App() {
   return (
@@ -11,7 +13,8 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/pacientes" element={<Pacientes />} />
+        <Route path="/resultados" element={<Resultados />} />
+        <Route path="/usuarios" element={<Usuarios />} />
       </Routes>
     </BrowserRouter>
   );

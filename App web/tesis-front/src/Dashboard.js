@@ -2,14 +2,73 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import logoEspol from "./assets/logoEspol.png";
 import "./Dashboard.css";
+import { useAuth } from "./context/AuthContext"; // 👈 Importar el contexto
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { auth, logout } = useAuth(); // 👈 Obtener auth y logout del contexto
+  const userRole = auth?.role;
+
   const [image, setImage] = useState(null);
-  const [userType, setUserType] = useState("radiologo");
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const location = useLocation();
+  const [resultados, setResultados] = useState([]);
+  const [precision, setPrecision] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const [progressValue, setProgressValue] = useState(0);
+  const [feedback, setFeedback] = useState("");
+
+  const [formData, setFormData] = useState({
+    key: crypto.randomUUID(),
+    birthDate: "",
+    gender: "",
+    city: "",
+    parish: "",
+    canton: "",
+    inferenceDate: new Date().toISOString().split("T")[0],
+  });
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const [registros, setRegistros] = useState([]);
+
+  const handleGuardar = () => {
+    const nuevoRegistro = {
+      id: formData.key,
+      fecha: formData.inferenceDate,
+      datos: formData,
+      resultados: resultados,
+      precision: precision,
+      feedback: feedback,
+      image: image,
+    };
+    setRegistros(prev => [...prev, nuevoRegistro]);
+    console.log("📦 Registro guardado temporalmente:", nuevoRegistro);
+
+    setImage(null);
+    setResultados([]);
+    setPrecision(null);
+    setFeedback("");
+    setFormData({
+      key: crypto.randomUUID(),
+      birthDate: "",
+      gender: "",
+      city: "",
+      parish: "",
+      canton: "",
+      inferenceDate: new Date().toISOString().split("T")[0],
+    });
+    setShowResults(false);
+    setLoading(false);
+    setProgressValue(0);
+    navigate("/dashboard");
+  };
+
+
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -23,13 +82,78 @@ export default function Dashboard() {
     }
   };
 
-  const handleDiagnose = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setShowResults(true);
-    }, 2000);
+  //CODIGO PARA LA SECCIÓN DE LA BARRA DE CARGA
+  const simulateProgress = () => {
+    setProgress(0);
+    let current = 0;
+    const interval = setInterval(() => {
+      current += 5;
+      if (current >= 95) {
+        clearInterval(interval);
+        return;
+      }
+      setProgress(current);
+    }, 100); // velocidad deseada (ajustable)
+    return interval;
   };
+
+
+
+  //PETICION AL BACKEND PARA LA PREDICCIÓN
+  const handleDiagnose = async () => {
+    if (!image) return;
+
+    setLoading(true);
+    setShowResults(false);
+    setProgressValue(0);
+
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      // Simular hasta el 90%
+      if (progress < 90) {
+        progress += 1;
+        setProgressValue(progress);
+      }
+    }, 20);
+
+  try {
+    const formData = new FormData();
+    const blob = await fetch(image).then(res => res.blob());
+    formData.append("file", blob, "image.png");
+
+    const response = await fetch("http://localhost:8000/predict", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    // 🔁 Completa del 90% al 100% tras recibir respuesta
+    clearInterval(progressInterval);
+
+    const completeProgress = async () => {
+      while (progress < 100) {
+        progress += 1;
+        setProgressValue(progress);
+        await new Promise(res => setTimeout(res, 20)); // velocidad final
+      }
+    };
+
+    await completeProgress(); // Esperar 90→100 antes de mostrar resultados
+
+    setResultados(data.predictions || []);
+    setPrecision(data.precision || null);
+    setShowResults(true);
+
+  } catch (error) {
+    console.error("Error en la predicción:", error);
+    alert("Ocurrió un error al procesar la imagen.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   return (
     <div className="dashboard-wrapper">
@@ -39,33 +163,50 @@ export default function Dashboard() {
           <img src={logoEspol} alt="ESPOL" className="espol-logo" />
           <h1 className="header-title">RX - TC</h1>
         </div>
-        <div className="user-role">
-          <span>{userType === "radiologo" ? "Radiólogo" : "Administrador"}</span>
-          <span>👤</span>
+        <div className="dashboard-header-right">
+          <div className="user-role">
+            <span>{userRole === "radiologo" ? "Radiólogo" : "Administrador"}</span>
+            <span>👤</span>
+          </div>
+          <button className="logout-button" onClick={() => {
+            logout(); // 👈 ahora usa el contexto
+            window.location.href = "/";
+          }}>
+            Cerrar sesión
+          </button>
         </div>
       </header>
 
-      <div className="dashboard-main">
-        {/* Sidebar */}
-        <nav className="sidebar">
-          <ul>           
-            <li onClick={() => {
-                if (location.pathname === "/dashboard") {
-                window.location.reload(); // fuerza recarga si ya estás ahí
-                } else {
-                navigate("/dashboard");
-                }
-            }}>Diagnósticos</li>
 
-            {userType === "radiologo" && <li onClick={() => navigate("/pacientes")}>Pacientes</li>}
-            {userType === "administrador" && (
-              <>
-                <li>Feedbacks</li>
-                <li>Usuarios</li>
-              </>
-            )}
-          </ul>
-        </nav>
+        <div className="dashboard-main">
+          {/* Sidebar */}
+          <nav className="sidebar">
+            <ul>
+              <li
+                onClick={() => {
+                  if (location.pathname === "/dashboard") {
+                    window.location.reload();
+                  } else {
+                    navigate("/dashboard");
+                  }
+                }}
+              >
+                Análisis
+              </li>
+
+              {userRole === "radiologo" && (
+                <li onClick={() => navigate("/resultados")}>Resultados</li>
+              )}
+
+              {userRole === "administrador" && (
+                <>
+                  <li onClick={() => navigate("/feedbacks")}>Feedbacks</li> {/* si luego lo implementas */}
+                  <li onClick={() => navigate("/usuarios")}>Usuarios</li>
+                </>
+              )}
+            </ul>
+          </nav>
+
 
         <div className="image-area">
           {!image && (
@@ -83,25 +224,79 @@ export default function Dashboard() {
             </>
           )}
 
+          {/* PREVISUALIZACIÓN */}
+
           {image && !loading && !showResults && (
             <>
+            <div className="image-form-container">
               <img src={image} alt="preview" className="preview-image" />
-              <button className="diagnose-button" onClick={handleDiagnose}>
-                Cargar imagen
-              </button>
+
+              <div className="form-metadata">
+                <h3>Información del paciente</h3>
+
+                <label>Fecha de nacimiento:</label>
+                <input type="date" name="birthDate" value={formData.birthDate} onChange={handleInputChange} />
+
+                <label>Género:</label>
+                <select name="gender" value={formData.gender} onChange={handleInputChange}>
+                  <option value="">Seleccione</option>
+                  <option value="Masculino">Masculino</option>
+                  <option value="Femenino">Femenino</option>
+                  <option value="Otro">Otro</option>
+                </select>
+
+                <label>Ciudad:</label>
+                <input type="text" name="city" value={formData.city} onChange={handleInputChange} />
+
+                <label>Parroquia:</label>
+                <input type="text" name="parish" value={formData.parish} onChange={handleInputChange} />
+
+                <label>Cantón:</label>
+                <input type="text" name="canton" value={formData.canton} onChange={handleInputChange} />
+              </div>
+            </div>
+
+
+              {/* BOTONES PREVISUALIZACIÓN */}
+              <div className="button-group">
+                <button className="diagnose-button" style={{ position: "relative", overflow: "hidden" }}>
+                  Volver a seleccionar
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      opacity: 0,
+                      width: "100%",
+                      height: "100%",
+                      cursor: "pointer"
+                    }}
+                  />
+                </button>
+                <button className="diagnose-button" onClick={handleDiagnose}>
+                  Analizar Imagen
+                </button>
+              </div>
             </>
           )}
 
-            {loading && (
-            <div className="results-container">
-                <img src={image} alt="preview" className="preview-image" />
-                <div className="progress-container">
-                <progress value={64} max={100} className="progress-bar"></progress>
-                <span className="progress-label">64%</span>
-                </div>
-            </div>
-            )}
+          {/* LOADING BAR */}
 
+          {loading && (
+            <div className="results-container">
+              <img src={image} alt="preview" className="preview-image" />
+              <div className="progress-container">
+                <progress value={progressValue} max={100} className="progress-bar"></progress>
+<span className="progress-label">{progressValue}%</span>
+              </div>
+            </div>
+          )}
+
+          {/* TABLA DE RESULTADOS */}
+          
             {showResults && (
             <div className="results-container">
                 <div className="result-section">
@@ -111,31 +306,43 @@ export default function Dashboard() {
                     <div className="result-box">
                         <h3>Resultados</h3>
                     <div className="result-disease-list">
-                        
-                        <ul>
-                        <li>Atelectasias..................... 0%</li>
-                        <li>Cardiomegalia.................. 20%</li>
-                        <li>Efusión......................... 0%</li>
-                        <li>Enfisema....................... 30%</li>
-                        <li>Fibrosis......................... 0%</li>
-                        <li>Infiltración...................... 0%</li>
-                        <li>Masa............................ 40%</li>
-                        <li>Sano............................. 0%</li>
-                        <li>Nódulo............................ 0%</li>
-                        <li>Engrosamiento pleural.......... 60%</li>
-                        <li>Neumonía.......................... 0%</li>
-                        <li>Neumotórax........................ 0%</li>
-                        <li>Tuberculosis.................... 0%</li>
-                        </ul>
+                       
+                      {Array.isArray(resultados) && (
+                      <table className="result-table">
+                        <thead>
+                          <tr>
+                            <th>Enfermedad</th>
+                            <th>Probabilidad</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {resultados.map((item, index) => (
+                            <tr key={index}>
+                              <td>{item.label}</td>
+                              <td>{(item.probability * 100).toFixed(2)}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+
+                      {precision !== null && (
+                        <p style={{ marginTop: "1rem", fontWeight: "bold" }}>
+                          Precisión general del modelo: {(precision * 100).toFixed(2)}%
+                        </p>
+                      )}
+
                     </div>
 
                     <div className="feedback-box">
-                        <h3>Feedback</h3>
-                        <textarea
-                        className="feedback-textarea"
-                        placeholder="Escriba su feedback aquí..."
+                        <h3>Observaciones</h3>
+                       <textarea
+                          className="feedback-textarea"
+                          placeholder="Escriba su feedback aquí..."
+                          value={feedback}
+                          onChange={(e) => setFeedback(e.target.value)}
                         />
-                        <button className="send-feedback-button">Enviar</button>
+                        <button className="send-feedback-button" onClick={handleGuardar}>Guardar</button>
                     </div>
                     </div>
                 </div>

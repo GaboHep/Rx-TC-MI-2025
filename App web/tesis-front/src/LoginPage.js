@@ -1,24 +1,38 @@
 import React, { useState } from "react";
 import "./LoginPage.css";
-import { useNavigate} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import logoEspol from "./assets/logoEspol.png";
+import { useAuth } from "./context/AuthContext"; // Asegúrate de que la ruta sea correcta
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { login } = useAuth(); // contexto para almacenar token y rol
 
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
 
-    // Simulación temporal de autenticación
-    if (username.trim() === "admin" && password.trim() === "1234") {
-      localStorage.setItem("auth", "true"); // simula sesión iniciada
-      //alert("Inicio de sesión exitoso");
+    try {
+      const response = await fetch("http://localhost:8000/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ username, password })
+      });
+
+      if (!response.ok) {
+        throw new Error("Credenciales incorrectas");
+      }
+
+      const data = await response.json();
+      login(data.access_token, data.role); // almacena en el contexto
       navigate("/dashboard");
-    } else {
-      alert("Credenciales incorrectas");
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -57,6 +71,7 @@ export default function LoginPage() {
           <button type="submit" className="input-button">
             Ingresar
           </button>
+          {error && <p style={{ color: "red", marginTop: "1rem" }}>{error}</p>}
         </form>
       </div>
     </div>
