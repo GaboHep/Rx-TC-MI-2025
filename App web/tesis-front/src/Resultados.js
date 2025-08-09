@@ -23,7 +23,7 @@ export default function Resultados() {
 
   useEffect(() => {
     if (!token) return;
-    fetch("http://localhost:8000/mis_registros", {
+    fetch("https://backend-toraxview.onrender.com/mis_registros", {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())

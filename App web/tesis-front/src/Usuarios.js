@@ -18,7 +18,7 @@ export default function Usuarios() {
   useEffect(() => {
     if (!token) return;
 
-    fetch("http://localhost:8000/radiologos", {
+    fetch("https://backend-toraxview.onrender.com/radiologos", {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
@@ -51,8 +51,8 @@ export default function Usuarios() {
     e.preventDefault();
     const method = editingId ? "PUT" : "POST";
     const url = editingId
-      ? `http://localhost:8000/radiologos/${editingId}`
-      : "http://localhost:8000/radiologos";
+      ? `https://backend-toraxview.onrender.com/radiologos/${editingId}`
+      : "https://backend-toraxview.onrender.com/radiologos";
 
     fetch(url, {
       method,
@@ -66,7 +66,7 @@ export default function Usuarios() {
       .then(() => {
         setForm({ username: "", password: "" });
         setEditingId(null);
-        return fetch("http://localhost:8000/radiologos", {
+        return fetch("https://backend-toraxview.onrender.com/radiologos", {
           headers: { Authorization: `Bearer ${token}` },
         });
       })
@@ -76,7 +76,7 @@ export default function Usuarios() {
 
   const handleDelete = (id) => {
     if (!window.confirm("¿Estás seguro de eliminar este usuario?")) return;
-    fetch(`http://localhost:8000/radiologos/${id}`, {
+    fetch(`https://backend-toraxview.onrender.com/radiologos/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     }).then(() =>

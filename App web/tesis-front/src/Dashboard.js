@@ -52,7 +52,7 @@ export default function Dashboard() {
     };
 
     try {
-      const response = await fetch("http://localhost:8000/guardar_registro", {
+      const response = await fetch("https://backend-toraxview.onrender.com/guardar_registro", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -144,7 +144,7 @@ export default function Dashboard() {
     const blob = await fetch(image).then(res => res.blob());
     formData.append("file", blob, "image.png");
 
-    const response = await fetch("http://localhost:8000/predict", {
+    const response = await fetch("https://backend-toraxview.onrender.com/predict", {
       method: "POST",
       body: formData,
     });

@@ -25,7 +25,7 @@ export default function Feedbacks() {
 
   useEffect(() => {
     if (!token) return;
-    fetch("http://localhost:8000/radiologos", {
+    fetch("https://backend-toraxview.onrender.com/radiologos", {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -40,7 +40,7 @@ export default function Feedbacks() {
 
   const cargarRegistros = (id) => {
     setActivoId(id);
-    fetch(`http://localhost:8000/registros_por_radiologo/${id}`, {
+    fetch(`https://backend-toraxview.onrender.com/registros_por_radiologo/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
